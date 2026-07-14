@@ -1,0 +1,52 @@
+// ---- grimaldi_sot_xcheck.mx3  (macrospin, matches COMSOL Grimaldi SOT, Ku_inv + chiFL) ----
+SetGridSize(1, 1, 1)
+SetCellSize(80e-9, 80e-9, 0.9e-9)
+EnableDemag = false
+Aex = 0
+
+// --- material (Grimaldi 80 nm dot) ---
+Msat_val := 1.1e6            
+Msat  = Msat_val
+alpha = 0.05
+tFL   := 0.9e-9
+
+// --- anisotropy: take it straight from COMSOL so DeltaTarget=50 is honored ---
+// Read Keff and Kdemag from COMSOL Global Evaluation at T=300, V=0.
+// COMSOL: Ku1_effective_perp = Keff;  in-plane demag already folded via (Nzz-Nxx).
+Keff_comsol   := 7.98e5       
+Kdemag_comsol := 7.52e5         
+
+AnisU = vector(0, 0, 1)
+Ku1 = Keff_comsol - Kdemag_comsol
+
+// --- SOT damping-like field ---
+hbar  := 1.0545718e-34
+qe    := 1.602176634e-19
+JHM   := 4e12              
+theta := -0.32              
+HDL_T := (hbar/(2*qe)) * theta * JHM / (Msat_val * tFL)   // B_DL in Tesla
+sigma := ConstVector(0, 1, 0)                             // sigma || y (current || x)
+
+dampingLike := Mul(Const(HDL_T), Cross(m, sigma))         // ~ m x sigma
+
+// --- SOT field-like term (chiFL = 0.25), B_FL = chiFL * B_DL * sigma ---
+chiFL     := 0.25
+fieldLike := Mul(Const(chiFL*HDL_T), sigma)               // along sigma (y)
+
+// --- assist field: -15 mT along x ---
+B_ext = vector(-0.015, 0, 0)
+
+TableAdd(E_total)
+tableautosave(10e-12)
+m = uniform(0, 0, 1)                                       // +z at t=0
+
+// SOT ON for tsot = tpulse = 1.5 ns
+AddFieldTerm(dampingLike)
+AddFieldTerm(fieldLike)
+AddEdensTerm(Mul(Const(-0.5), Dot(dampingLike, M_full)))
+run(1.5e-9)
+
+// SOT OFF, settle to 30 ns
+RemoveCustomFields()
+RemoveCustomEnergies()
+run(28.5e-9)

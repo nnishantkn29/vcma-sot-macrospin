@@ -1,0 +1,43 @@
+// ---- tableIV_vcma_xcheck.mx3  (macrospin) ----
+SetGridSize(1, 1, 1)
+SetCellSize(150e-9, 50e-9, 1.7e-9)
+EnableDemag = false
+
+// --- plain numeric constants ---
+Ms  := 1.257e6
+tFL := 1.7e-9
+tOX := 2e-9
+KIT := 1.286e-3
+xiT := 50e-15
+Vwrite := 1.0
+Ku_bulk := 2.245e5 
+
+// COMSOL Keff = Ku_bulk + KIT/tFL - VCMA
+Ku_perp := Ku_bulk + KIT/tFL          // ~1.0e6 J/m^3
+
+// demag (matches COMSOL Kdemag = 0.5*mu0*Ms^2*(Nzz-Nxx))
+N_xx := 0.0159
+N_zz := 0.9345
+Kdemag := 0.5 * mu0 * Ms * Ms * (N_zz - N_xx)
+
+// VCMA reduction at full voltage
+dKu := xiT * Vwrite / (tOX * tFL)
+
+// --- assign fields ---
+Msat  = Ms
+alpha = 0.01
+Aex   = 0
+AnisU = vector(0, 0, 1)
+B_ext = vector(0.050, 0, 0)           // +50 mT assist along x
+
+tableautosave(10e-12)
+TableAdd(E_total)
+m = uniform(0, 0, 1)
+
+// VCMA ON: Knet during pulse = (Ku_perp - dKu) - Kdemag
+Ku1 = Ku_perp - dKu - Kdemag
+run(0.5e-9)
+
+// VCMA OFF: Knet = Ku_perp - Kdemag
+Ku1 = Ku_perp - Kdemag
+run(14.5e-9)
